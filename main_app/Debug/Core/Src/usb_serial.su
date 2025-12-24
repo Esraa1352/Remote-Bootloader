@@ -1,0 +1,6 @@
+../Core/Src/usb_serial.c:32:6:CUSTOM_USB_Reconnect	32	static
+../Core/Src/usb_serial.c:47:8:CUSTOM_Receive_FS	24	static
+../Core/Src/usb_serial.c:64:10:USB_FifoCount	16	static
+../Core/Src/usb_serial.c:78:9:USB_ReadNoWait	24	static
+../Core/Src/usb_serial.c:101:9:USB_Read	24	static
+../Core/Src/usb_serial.c:129:9:USB_Write	16	static

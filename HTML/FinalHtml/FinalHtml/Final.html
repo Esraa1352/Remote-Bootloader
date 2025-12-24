@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Firmware Updater</title>
+
+<style>
+body{
+    font-family: "Segoe UI", Arial, sans-serif;
+    margin:0;
+    height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(#000000, #021a03, #022d05, #013803);
+    color:#b8ffd0;
+}
+.wrapper{ width:80%; max-width:1100px; text-align:center; }
+
+h1{
+    font-size:36px;
+    margin-bottom:30px;
+    color:#65ff8a;
+}
+
+.btn{
+    padding:12px 34px;
+    margin:0 15px 20px 15px;
+    border-radius:14px;
+    border:2px solid #2fff70;
+    background:transparent;
+    color:#98ffc1;
+    cursor:pointer;
+    font-size:17px;
+}
+#my-text{
+    width:85%;
+    margin:30px auto 0;
+    background:rgba(0,35,0,0.55);
+    border:2px solid #2fff70;
+    border-radius:20px;
+    padding:20px 25px;
+    font-size:18px;
+}
+</style>
+</head>
+
+<body>
+<div class="wrapper">
+
+<h1>Firmware Updater</h1>
+
+<button class="btn" onclick="eraseFlash()">Erase Flash</button>
+<button class="btn" onclick="selectFile()">Write Flash</button>
+<button class="btn" onclick="modeTest()">Mode Test</button>
+
+<pre id="my-text">Waiting...</pre>
+
+</div>
+
+<script src="myserial.js"></script>
+
+<script>
+// ================= WEBSOCKET =================
+let socket = new WebSocket("ws://localhost:8080");
+
+socket.onopen = () => console.log("WS connected");
+socket.onmessage = e => console.log("WS:", e.data);
+
+function sendWS(type, data){
+    if(socket.readyState === 1){
+        socket.send(JSON.stringify({ type, data, time: Date.now() }));
+    }
+}
+
+// ================= UI =================
+function msg(t){ document.getElementById("my-text").innerHTML = t; }
+
+// ================= BOOTLOADER =================
+async function ensureBootloader(){
+    await comOpen(115200);
+    await comWrite([0x01]);
+    let r = await comRead(4);
+
+    if(r[1] === 0x00){
+        msg("Switching to Bootloader...");
+        sendWS("MODE", "Switching to Bootloader");
+        await comWrite([0x05]);
+        await comClose();
+        await new Promise(r=>setTimeout(r,1500));
+        await comOpen(115200);
+    }
+
+    sendWS("MODE", "Bootloader Ready");
+    return true;
+}
+
+// ================= ERASE =================
+async function eraseFlash(){
+    await ensureBootloader();
+    msg("Erasing...");
+    sendWS("ERASE", "Started");
+
+    await comWrite([0x03]);
+    await comRead(1);
+
+    msg("Erase OK");
+    sendWS("ERASE", "Completed");
+}
+
+// ================= WRITE =================
+let firmwareBytes=[];
+let readerFile=new FileReader();
+
+function selectFile(){
+    let f=document.createElement("input");
+    f.type="file";
+    f.onchange=()=>readerFile.readAsBinaryString(f.files[0]);
+    f.click();
+}
+
+readerFile.onload = async function(){
+    let len=readerFile.result.length;
+    firmwareBytes=[];
+    for(let i=0;i<len;i++)
+        firmwareBytes[i]=readerFile.result.charCodeAt(i);
+
+    await ensureBootloader();
+    await comWrite([0x03]);
+    await comRead(1);
+
+    sendWS("WRITE", "Started");
+
+    for(let i=0;i<len/4;i++){
+        let flashAddr = 0x08010000 + i*4;
+        let addr=[flashAddr&0xFF,(flashAddr>>8)&0xFF,(flashAddr>>16)&0xFF,(flashAddr>>24)&0xFF];
+        let word=[firmwareBytes[i*4],firmwareBytes[i*4+1],firmwareBytes[i*4+2],firmwareBytes[i*4+3]];
+
+        await comWrite([0x04,...addr,...word]);
+        await comRead(1);
+
+        let p=(100*i/((len/4)-1)).toFixed(0);
+        msg("Writing: "+p+"%");
+        sendWS("PROGRESS", p);
+    }
+
+    msg("Done");
+    sendWS("DONE", "Firmware Updated");
+    await comWrite([0x05]);
+}
+
+// ================= MODE TEST =================
+async function modeTest(){
+    await comOpen(115200);
+    await comWrite([0x01]);
+    let r=await comRead(4);
+
+    msg(r[1]===0x00 ? "Application Mode" : "Bootloader Mode");
+    sendWS("MODE_TEST", r[1]);
+}
+</script>
+</body>
+</html>

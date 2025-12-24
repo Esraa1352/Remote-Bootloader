@@ -1,0 +1,6 @@
+../Core/Src/usb_serial.c:32:6:CUSTOM_USB_Reconnect	1
+../Core/Src/usb_serial.c:47:8:CUSTOM_Receive_FS	3
+../Core/Src/usb_serial.c:64:10:USB_FifoCount	2
+../Core/Src/usb_serial.c:78:9:USB_ReadNoWait	4
+../Core/Src/usb_serial.c:101:9:USB_Read	4
+../Core/Src/usb_serial.c:129:9:USB_Write	2
